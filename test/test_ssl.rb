@@ -81,6 +81,13 @@ class TestSSL < Test::Unit::TestCase
       last_response.headers['Set-Cookie'].split("\n")
   end
 
+  def test_flag_cookies_as_secure_on_ssl_port
+    self.app = Rack::SSL.new(default_app, :ssl_port => 8443)
+    get "https://example.org:8443/"
+    assert_equal ["id=1; path=/; secure", "token=abc; path=/; secure; HttpOnly" ],
+      last_response.headers['Set-Cookie'].split("\n")
+  end
+
   def test_flag_cookies_as_secure_at_end_of_line
     self.app = Rack::SSL.new(lambda { |env|
       headers = {
@@ -124,17 +131,30 @@ class TestSSL < Test::Unit::TestCase
       last_response.headers['Location']
   end
 
-  def test_redirect_to_port
-    self.app = Rack::SSL.new(default_app, :port => 8443)
+  def test_redirect_to_ssl_port
+    self.app = Rack::SSL.new(default_app, :ssl_port => 8443)
     get "http://example.org/path?key=value"
     assert_equal "https://example.org:8443/path?key=value",
       last_response.headers['Location']
   end
 
-  def test_redirect_to_host_and_port
-    self.app = Rack::SSL.new(default_app, :host => "ssl.example.org", :port => 8443)
+  def test_redirect_to_host_and_ssl_port
+    self.app = Rack::SSL.new(default_app, :host => "ssl.example.org", :ssl_port => 8443)
     get "http://example.org/path?key=value"
     assert_equal "https://ssl.example.org:8443/path?key=value",
+      last_response.headers['Location']
+  end
+
+  def test_do_not_redirect_on_unknown_port
+    self.app = Rack::SSL.new(default_app, :port => 8080)
+    get "http://example.org:3000/path?key=value"
+    assert_nil last_response.headers['Location']
+  end
+
+  def test_redirect_on_known_port
+    self.app = Rack::SSL.new(default_app, :port => 8080, :ssl_port => 8443)
+    get "http://example.org:8080/path?key=value"
+    assert_equal "https://example.org:8443/path?key=value",
       last_response.headers['Location']
   end
 

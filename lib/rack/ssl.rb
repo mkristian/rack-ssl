@@ -16,9 +16,10 @@ module Rack
       @hsts = {} if @hsts.nil? || @hsts == true
       @hsts = self.class.default_hsts_options.merge(@hsts) if @hsts
 
-      @exclude = options[:exclude]
-      @host    = options[:host]
-      @port    = options[:port]
+      @exclude  = options[:exclude]
+      @host     = options[:host]
+      @port     = options[:port] || 80
+      @ssl_port = options[:ssl_port]
     end
 
     def call(env)
@@ -30,7 +31,13 @@ module Rack
         flag_cookies_as_secure!(headers)
         [status, headers, body]
       else
-        redirect_to_https(env)
+        req  = Request.new(env)
+        url  = URI(req.url)
+        if @port && url.port != @port.to_i
+          @app.call(env)
+        else
+          redirect_to_https(url)
+        end
       end
     end
 
@@ -46,12 +53,10 @@ module Rack
         end
       end
 
-      def redirect_to_https(env)
-        req        = Request.new(env)
-        url        = URI(req.url)
+      def redirect_to_https(url)
         url.scheme = "https"
         url.host   = @host if @host
-        url.port   = @port if @port
+        url.port   = @ssl_port if @ssl_port
         headers    = hsts_headers.merge('Content-Type' => 'text/html',
                                         'Location'     => url.to_s)
 
